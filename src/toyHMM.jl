@@ -141,8 +141,29 @@ function viterbi(hmm::dHMM, o::Vector{Int})
 end
 	
 function baum_welch!(hmm::dHMM, o::Vector{Int}; n_epochs=20)
-	# if user provides a single observation sequence, convert input appropriately
+	# Convert input appropriately if user provides a single observation sequence
 	return baum_welch!(hmm,(Vector{Int})[o];n_epochs=n_epochs)
+end
+
+function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; n_epochs=20, axis=1)
+	# Convert input appropriately if user provides a matrix of observations sequences
+	sequences = (Vector{Int})[]
+
+	# Let the user specify whether sequences are columns or row (default is columns)
+	if axis == 1
+		for i = 1:size(sequence_matrix,2)
+			push!(sequences,sequence_matrix[:,i])
+		end
+	elseif axis == 2
+		for i = 1:size(sequence_matrix,1)
+			push!(sequences,sequence_matrix[i,:])
+		end
+	else
+		error("axis argument not valid. Must be 1, to specify sequences as columns, or 2, to specify sequences as rows")
+	end
+
+	# Fit the hmm now that sequences converted to Vector{Vector{Int}}
+	return baum_welch!(hmm, sequences; n_epochs=n_epochs)
 end
 
 function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; n_epochs=20)
@@ -182,7 +203,12 @@ function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; n_epochs=20)
 
 			# Update parameter estimates
 			p_new += g[:,1]
-			A_new += (squeeze(sum(x,3),3) ./ sum(g[:,1:end-1],2))'
+			for i = 1:hmm.n
+				sum_g = sum(g[i,1:end-1])
+				for j = 1:hmm.n
+					A_new[i,j] = sum(x[i,j,:]) / sum_g
+				end
+			end
 			for z = 1:hmm.m
 				B_new[:,z] += sum(g[:,o.==z],2) ./ gsum2
 			end
