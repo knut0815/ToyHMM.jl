@@ -1,4 +1,4 @@
-module discreteHMM
+module toyHMM
 
 using StatsBase:sample,WeightVec
 export dHMM, generate, forward, backward, viterbi, baum_welch!
