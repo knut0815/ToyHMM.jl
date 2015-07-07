@@ -11,4 +11,4 @@ http://www.cs.colostate.edu/~hamiltom/code.html
 
 Which follows Rabiner's tutorial on HMMs:
 
-Rabiner, Lawrence R. "A tutorial on hidden Markov models and selected applications in speech recognition." Proceedings of the IEEE 77.2 (1989): 257-286.
+Rabiner, Lawrence R. ["A tutorial on hidden Markov models and selected applications in speech recognition."](http://www.ece.ucsb.edu/Faculty/Rabiner/ece259/Reprints/tutorial%20on%20hmm%20and%20applications.pdf) Proceedings of the IEEE 77.2 (1989): 257-286.
