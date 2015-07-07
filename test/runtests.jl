@@ -111,22 +111,54 @@ hmm.B = [ 1/6   1/6   1/6   1/6   1/6   1/6 ;
           1/10  1/10  1/10  1/10  1/10  1/2 ]
 hmm.p = [0.5, 0.5]
 
-# check Baum-Welch algorith on two sequences
-#o1 = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
-#o2 = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
-o1 = [ 2, 1, 3, 5, 6, 6, 3, 2, 1 ]
-o2 = [ 2, 1, 3, 5, 6, 6, 3, 2, 1 ]
-seq = Vector{Int}[o1,o2]
+# # check Baum-Welch algorith on two sequences
+# #o1 = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
+# #o2 = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
+# o1 = [ 2, 1, 3, 5, 6, 6, 3, 2, 1 ]
+# o2 = [ 2, 1, 3, 5, 6, 6, 3, 2, 1 ]
+# seq = Vector{Int}[o1,o2]
 
-expected_result_A = [ 0.7143  0.2857 ; # expected results to 4 decimal places
-                      0.2222  0.7778 ]
-expected_result_B = [ 0.5556  0.4444  0.      0.      0.      0.     ;
-                      0.      0.      0.4444  0.      0.1111  0.4444 ]
-expected_result_p = [1.0, 0.0]
+# expected_result_A = [ 0.7143  0.2857 ; # expected results to 4 decimal places
+#                       0.2222  0.7778 ]
+# expected_result_B = [ 0.5556  0.4444  0.      0.      0.      0.     ;
+#                       0.      0.      0.4444  0.      0.1111  0.4444 ]
+# expected_result_p = [1.0, 0.0]
 
-baum_welch!(hmm, seq; n_epochs=200)
-@test(all(round(hmm.A,4) .== expected_result_A))
-@test(all(round(hmm.B,4) .== expected_result_B))
-@test(all(round(hmm.p,4) .== expected_result_p))
+# baum_welch!(hmm, seq; n_epochs=200)
+# @test(all(round(hmm.A,4) .== expected_result_A))
+# @test(all(round(hmm.B,4) .== expected_result_B))
+# @test(all(round(hmm.p,4) .== expected_result_p))
 
-# TODO: tests without a symmetric A
+
+# reinitialize hmm
+A = [ 0.7 0.4 ;
+      0.3 0.6 ]
+B = [ 1/2        1/3   1/6+eps() ;
+      1/6+eps()  1/3   1/2       ]
+p = [0.5, 0.5]
+hmm = dHMM(A,B,p)
+
+o = [1, 3, 1, 1, 1, 2, 3, 1, 2, 1, 3, 2, 1, 3, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 2, 3, 2, 1, 2, 3, 3, 2, 1, 1, 3, 2, 3, 2, 2, 2, 3, 2, 3, 3, 2, 1, 2]
+
+p_obs,alpha = forward(hmm,o)
+println(round(alpha,4))
+println("**********")
+
+#n_seq,seq_len = 100,50
+n_seq,seq_len = 1,50
+s = zeros(Int,seq_len,n_seq)
+o = zeros(Int,seq_len,n_seq)
+
+for i = 1:n_seq
+  s[:,i],o[:,i] = generate(hmm, seq_len)
+end
+println(o')
+
+baum_welch!(hmm, o; n_epochs=20)
+
+println("A = ")
+println(hmm.A)
+println("B = ")
+println(hmm.B)
+println("C = ")
+println(hmm.p)
