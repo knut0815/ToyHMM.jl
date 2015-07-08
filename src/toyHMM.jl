@@ -7,12 +7,12 @@ export dHMM, generate, forward, backward, viterbi, baum_welch!
 type dHMM
 	n::Int             # Number of hidden states
 	m::Int 			   # Alphabet length (observations are discrete for now)
-	A::Matrix{Float64} # Estimated state-transition matrix
+	A::Matrix{Float64} # Estimated state-transition matrix A[i,j] = Pr[i->j]
 	B::Matrix{Float64} # Estimated emission probabilities (discrete for now)
 	p::Vector{Float64} # Estimiated initial state probabilities
 	
 	# Notes:
-	#   "A" is a NxN matrix, columns sum to one
+	#   "A" is a NxN matrix, rows sum to one
 	#   "B" is a NxM matrix, rows sum to one
 
 	# To do:
@@ -78,34 +78,45 @@ end
 function forward(hmm::dHMM, o::Vector{Int})
 	n_obs = length(o)
 
-	# alpha[i,j] = Pr(o[1:i] | state j at step i)
-	alpha = zeros(hmm.n, n_obs) 
+	# alpha[t,i] = probability of being in state 'i' given o[1:t]
+	alpha = zeros(n_obs, hmm.n) 
 
 	# base case (initialize at start)
-	alpha[:,1] = hmm.p .* hmm.B[:,o[1]]
+	for i = 1:hmm.n
+		alpha[1,i] = hmm.p[i] * hmm.B[i,o[1]]
+	end
 
 	# induction step
-	for i = 2:n_obs
-		alpha[:,i] = (hmm.A*alpha[:,i-1]) .* hmm.B[:,o[i]]
+	for t = 2:n_obs
+		for j = 1:hmm.n
+			for i = 1:hmm.n
+				alpha[t,j] += hmm.A[i,j] * alpha[t-1,i]
+			end
+			alpha[t,j] *= hmm.B[j,o[t]]
+		end
 	end
 
 	# Pr(observations), given hmm parameters (sum over all states at last point)
-	p_obs = sum(alpha[:,end]) 
-	return (p_obs, alpha)
+	p_obs = sum(alpha[end,:]) 
+	return (alpha,p_obs)
 end
 
 function backward(hmm::dHMM, o::Vector{Int})
 	n_obs = length(o)
 
-	# beta[i,j] = Pr(o[i+1:end] | state j at step i)
-	beta = zeros(hmm.n, n_obs)
+	# beta[t,i] = probability of being in state 'i' and then obseverving o[t+1:end]
+	beta = zeros(n_obs, hmm.n)
 
 	# base case (initialize at end)
-	beta[:,end] += 1
+	beta[end,:] += 1
 
 	# induction step
-	for i = reverse(1:n_obs-1)
-		beta[:,i] = hmm.A * (hmm.B[:,o[i+1]].*beta[:,i+1])
+	for t = reverse(1:n_obs-1)
+		for i = 1:hmm.n
+			for j = 1:hmm.n
+				beta[t,i] += hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
+			end
+		end
 	end
 
 	return beta
@@ -116,36 +127,39 @@ function viterbi(hmm::dHMM, o::Vector{Int})
 
 	# delta[i,j] = highest probability of state sequence ending in state j on step i
 	# psi[i,j] = most likely state on step i-1 given state j on step i (argmax of deltas)
-	delta = zeros(hmm.n, n_obs)
-	psi = zeros(Int, hmm.n, n_obs)
+	delta = zeros(n_obs, hmm.n)
+	psi = ones(Int, n_obs, hmm.n)
 
 	# base case, psi[:,1] is ignored so don't initialize
-	delta[:,1] = hmm.p .* hmm.B[:,o[1]]
+	for i = 1:hmm.n
+		delta[1,i] = hmm.p[i] .* hmm.B[i,o[1]]
+	end
 
-	# recursion
-	for i = 2:n_obs
+	# induction step
+	for t = 2:n_obs
 		for j = 1:hmm.n
-			delta[j,i],psi[j,i] = findmax(hmm.A[:,j].*delta[:,i-1].*hmm.B[j,o[i]])
+			delta[t,j],psi[t,j] = findmax(hmm.A[:,j].*delta[t-1,:]')
+			delta[t,j] *= hmm.B[j,o[t]]
 		end
 	end
 
 	# backtrack to uncover the most likely path / state sequence
 	q = zeros(Int,n_obs) # vector holding state sequence
-	q[end] = indmax(delta[:,end])
+	q[end] = indmax(delta[end,:])
 
 	# backtrack recursively
-	for i = reverse(1:n_obs-1)
-		q[i] = psi[q[i+1],i+1]
+	for t = reverse(1:n_obs-1)
+		q[t] = psi[t+1,q[t+1]]
 	end
 	return q
 end
 	
-function baum_welch!(hmm::dHMM, o::Vector{Int}; n_epochs=20)
+function baum_welch!(hmm::dHMM, o::Vector{Int}; max_iter=20, tol=1e-6)
 	# Convert input appropriately if user provides a single observation sequence
-	return baum_welch!(hmm,(Vector{Int})[o];n_epochs=n_epochs)
+	return baum_welch!(hmm,(Vector{Int})[o];max_iter=max_iter,tol=tol)
 end
 
-function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; n_epochs=20, axis=1)
+function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; max_iter=20, tol=1e-6, axis=1)
 	# Convert input appropriately if user provides a matrix of observations sequences
 	sequences = (Vector{Int})[]
 
@@ -163,60 +177,72 @@ function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; n_epochs=20, axis=
 	end
 
 	# Fit the hmm now that sequences converted to Vector{Vector{Int}}
-	return baum_welch!(hmm, sequences; n_epochs=n_epochs)
+	return baum_welch!(hmm, sequences; max_iter=max_iter, tol=tol)
 end
 
-function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; n_epochs=20)
+function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol=1e-6)
 	# Fit hmm parameters given set of observation sequences
 	n_seq = length(sequences)
 
     # convergence history of the fit, log-liklihood
-    ch = zeros(n_epochs) 
+    ch = (Float64)[]
 
-    for k = 1:n_epochs
+    for k = 1:max_iter
     	A_new = zeros(hmm.n, hmm.n)
     	B_new = zeros(hmm.n, hmm.m)
-    	p_new = zeros(hmm.n)
+    	p_new = zeros(1, hmm.n)
     	for o in sequences
     		n_obs = length(o)
 
     		# Calculate forward/backward probabilities
-			log_p_obs, alpha = forward(hmm, o)  # Calculate forward probs, log-likelihood
-		    beta = backward(hmm, o)             # Calculate backward probs
-		    ch[k] += log_p_obs
+			alpha, p_obs = forward(hmm, o)  # Calculate forward probs, log-likelihood
+		    beta = backward(hmm, o)         # Calculate backward probs
+		    push!(ch,log(p_obs))
 
-			# x[i,j,t] = expected transition from state i at time t to state j on the next step
-			x = zeros(hmm.n, hmm.n, n_obs-1)
+			# x[t,i,j] = probability of being in state 'i' at 't' and then in state 'j' at 't+1'
+			x = zeros(n_obs-1, hmm.n, hmm.n)
 			for t = 1:(n_obs-1)
 				for i = 1:hmm.n
 					for j = 1:hmm.n
-						x[i,j,t] = alpha[i,t] * hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[j,t+1]
+						x[t,i,j] = alpha[t,i] * hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
 					end
 				end
-				x[:,:,t] ./= sum(x[:,:,t]) # normalize to achieve probabilities
+				x[t,:,:] ./= sum(x[t,:,:]) # normalize to achieve probabilities
 			end
 
-			# g[i,t] = estimated probability of being in state i at time/step t
+			# g[t,i] = probability of being in state 'i' at step 't' given all observations
 			g = alpha .* beta
-			g ./= sum(g,1)   # normalize across states
-			gsum2 = sum(g,2) # est proportion of steps spent in each state
+			g ./= sum(g,2)   # normalize across states
 
-			# Update parameter estimates
-			p_new += g[:,1]
+			# Re-estimate hmm.p (initial state probabilities)
+			p_new += g[1,:]
+
+			# Re-estimate hmm.A (state-transition probabilities)
 			for i = 1:hmm.n
-				sum_g = sum(g[i,1:end-1])
+				ptrans = sum(g[1:end-1,i]) # ptrans = probability of transition from state 'i' at any unknown time
 				for j = 1:hmm.n
-					A_new[i,j] = sum(x[i,j,:]) / sum_g
+					A_new[i,j] = sum(x[:,i,j]) / ptrans
 				end
 			end
-			for z = 1:hmm.m
-				B_new[:,z] += sum(g[:,o.==z],2) ./ gsum2
+
+			# Re-estimate hmm.B (emission probabilities)
+			pstate = sum(g,1) # pstate[i] = probability of being in state 'i' at any unknown time
+			for i = 1:hmm.n
+				for z = 1:hmm.m
+					B_new[i,z] += sum(g[o.==z,i]) ./ pstate[i]
+				end
 			end
 		end
+		## TODO: RE-NORMALIZATION
 		# renormalize across sequences and update parameters
-		hmm.p = p_new ./ n_seq # enforces sum(p_new) == 1
+		hmm.p = vec(p_new) ./ n_seq
 		hmm.A = A_new ./ n_seq
 		hmm.B = B_new ./ n_seq
+
+		if length(ch)>1 && (ch[end]-ch[end-1] < tol)
+			println("Baum-Welch converged, stopping early")
+			break
+		end
 	end
 
 	return ch
