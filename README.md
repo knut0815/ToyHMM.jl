@@ -1,7 +1,5 @@
 # toyHMM.jl
-A simple Hidden Markov Model implementation for educational purposes
-
-**Note:** This is just a rough implementation at the moment. I'll hopefully be developing a more flexible [HMM julia package here](https://github.com/ahwillia/HMM.jl).
+A simple Hidden Markov Model implementation for educational purposes.
 
 ### References and Acknowledgements:
 
