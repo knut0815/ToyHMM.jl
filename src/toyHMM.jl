@@ -75,7 +75,7 @@ function generate(hmm::dHMM, n_obs::Int)
 	return (s,o)
 end
 
-function forward(hmm::dHMM, o::Vector{Int})
+function forward(hmm::dHMM, o::Vector{Int}; scaling=true)
 	n_obs = length(o)
 
 	# alpha[t,i] = probability of being in state 'i' given o[1:t]
@@ -86,6 +86,12 @@ function forward(hmm::dHMM, o::Vector{Int})
 		alpha[1,i] = hmm.p[i] * hmm.B[i,o[1]]
 	end
 
+	if scaling
+		c = (Float64)[] # scaling coefficients
+		push!(c,1./sum(alpha[1,:]))
+		alpha[1,:] *= c[end] 
+	end
+
 	# induction step
 	for t = 2:n_obs
 		for j = 1:hmm.n
@@ -94,21 +100,38 @@ function forward(hmm::dHMM, o::Vector{Int})
 			end
 			alpha[t,j] *= hmm.B[j,o[t]]
 		end
+		if scaling
+			push!(c,1./sum(alpha[t,:]))
+			alpha[t,:] *= c[end]
+		end
 	end
 
-	# Pr(observations), given hmm parameters (sum over all states at last point)
-	p_obs = sum(alpha[end,:]) 
-	return (alpha,p_obs)
+	# Calculate likelihood (or log-likelihood) of observed sequence
+	if scaling
+		log_p_obs = -sum(log(c)) # see Rabiner (1989), eqn 103
+		return (alpha,log_p_obs,c)
+	else
+		p_obs = sum(alpha[end,:]) 
+		return (alpha,p_obs)
+	end
 end
 
-function backward(hmm::dHMM, o::Vector{Int})
+function backward(hmm::dHMM, o::Vector{Int}; scale_coeff=None)
+	# scale_coeff are 1/sum(alpha[t,:]) calculated by forward algorithm
 	n_obs = length(o)
 
 	# beta[t,i] = probability of being in state 'i' and then obseverving o[t+1:end]
 	beta = zeros(n_obs, hmm.n)
 
 	# base case (initialize at end)
-	beta[end,:] += 1
+	if scale_coeff == None
+		beta[end,:] += 1
+	else
+		if length(scale_coeff) != n_obs
+			error("scale_coeff is improperly defined (wrong length)")
+		end
+		beta[end,:] += scale_coeff[end]
+	end
 
 	# induction step
 	for t = reverse(1:n_obs-1)
@@ -116,6 +139,9 @@ function backward(hmm::dHMM, o::Vector{Int})
 			for j = 1:hmm.n
 				beta[t,i] += hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
 			end
+		end
+		if scale_coeff != None
+			beta[t,:] *= scale_coeff[t]
 		end
 	end
 
@@ -154,12 +180,12 @@ function viterbi(hmm::dHMM, o::Vector{Int})
 	return q
 end
 	
-function baum_welch!(hmm::dHMM, o::Vector{Int}; max_iter=20, tol=1e-6)
+function baum_welch!(hmm::dHMM, o::Vector{Int}; max_iter=20, tol=1e-6, scaling=true)
 	# Convert input appropriately if user provides a single observation sequence
-	return baum_welch!(hmm,(Vector{Int})[o];max_iter=max_iter,tol=tol)
+	return baum_welch!(hmm,(Vector{Int})[o];max_iter=max_iter,tol=tol,scaling=scaling)
 end
 
-function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; max_iter=20, tol=1e-6, axis=1)
+function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; max_iter=20, tol=1e-6, scaling=true, axis=1)
 	# Convert input appropriately if user provides a matrix of observations sequences
 	sequences = (Vector{Int})[]
 
@@ -177,10 +203,10 @@ function baum_welch!(hmm::dHMM, sequence_matrix::Matrix{Int}; max_iter=20, tol=1
 	end
 
 	# Fit the hmm now that sequences converted to Vector{Vector{Int}}
-	return baum_welch!(hmm, sequences; max_iter=max_iter, tol=tol)
+	return baum_welch!(hmm, sequences; max_iter=max_iter, tol=tol, scaling=scaling)
 end
 
-function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol=1e-6)
+function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol=1e-6, scaling=true)
 	# Fit hmm parameters given set of observation sequences
 	n_seq = length(sequences)
 
@@ -195,9 +221,15 @@ function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol
     		n_obs = length(o)
 
     		# Calculate forward/backward probabilities
-			alpha, p_obs = forward(hmm, o)  # Calculate forward probs, log-likelihood
-		    beta = backward(hmm, o)         # Calculate backward probs
-		    push!(ch,log(p_obs))
+    		if scaling
+    			alpha, log_p_obs, coeff = forward(hmm,o; scaling=true)
+    			beta = backward(hmm,o; scale_coeff=coeff)
+    			push!(ch,log_p_obs)
+    		else
+				alpha, p_obs = forward(hmm,o; scaling=false)
+			    beta = backward(hmm,o)
+			    push!(ch,log(p_obs))
+			end
 
 			# x[t,i,j] = probability of being in state 'i' at 't' and then in state 'j' at 't+1'
 			x = zeros(n_obs-1, hmm.n, hmm.n)
