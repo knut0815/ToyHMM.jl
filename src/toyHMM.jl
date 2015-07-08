@@ -139,9 +139,9 @@ function backward(hmm::dHMM, o::Vector{Int}; scale_coeff=None)
 			for j = 1:hmm.n
 				beta[t,i] += hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
 			end
-			if scale_coeff != None
-				beta[t,:] *= scale_coeff[t]
-			end
+		end
+		if scale_coeff != None
+			beta[t,:] *= scale_coeff[t]
 		end
 	end
 
