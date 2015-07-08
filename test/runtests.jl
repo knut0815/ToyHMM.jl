@@ -108,18 +108,25 @@ o = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
 true_vit = [ 1, 1, 1, 2, 2, 1, 1, 1, 1 ]
 @test(all(viterbi(hmm,o) .== true_vit))
 
-# # check Baum-Welch algorithm
-# o = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
-# expected_result_A = [ 0.75  0.25 ;
-#                       0.25  0.75 ]
-# expected_result_B = [ 0.6  0.4  0.0  0.0  0.0  0.0 ;
-#                       0.0  0.0  0.5  0.0  0.0  0.5 ]
-# expected_result_p = [1.0, 0.0]
+# check Baum-Welch algorithm
+o = [ 1, 2, 1, 6, 6, 3, 3, 2, 1 ]
+expected_result_A = [ 0.75  0.25 ;
+                      0.25  0.75 ]
+expected_result_B = [ 0.6  0.4  0.0  0.0  0.0  0.0 ;
+                      0.0  0.0  0.5  0.0  0.0  0.5 ]
+expected_result_p = [1.0, 0.0]
 
-# baum_welch!(hmm, o; max_iter=60)
-# @test(all(round(hmm.A,4) .== expected_result_A))
-# @test(all(round(hmm.B,4) .== expected_result_B))
-# @test(all(round(hmm.p,4) .== expected_result_p))
+hmm1 = deepcopy(hmm) # check without scaling alpha/beta
+baum_welch!(hmm1, o; max_iter=60, scaling=false)
+@test(all(round(hmm1.A,4) .== expected_result_A))
+@test(all(round(hmm1.B,4) .== expected_result_B))
+@test(all(round(hmm1.p,4) .== expected_result_p))
+
+hmm2 = deepcopy(hmm) # check with scaling alpha/beta
+baum_welch!(hmm2, o; max_iter=60, scaling=true)
+@test(all(round(hmm2.A,4) .== expected_result_A))
+@test(all(round(hmm2.B,4) .== expected_result_B))
+@test(all(round(hmm2.p,4) .== expected_result_p))
 
 # # reinitialize hmm (true underlying model)
 # #A = [ 0.7 0.3 ;
@@ -128,18 +135,18 @@ true_vit = [ 1, 1, 1, 2, 2, 1, 1, 1, 1 ]
 # #      1/6+eps()  1/3   1/2       ]
 # #p = [0.5, 0.5]
 
-# # reinitialize hmm (randomly)
-# hmm = dHMM(2,3)
-# o = [1,3,1,1,1,2,3,1,2,1,3,2,1,3,2,2,2,2,2,2,2,1,1,1,2,1,1,2,3,2,1,2,3,3,2,1,1,3,2,3,2,2,2,3,2,3,3,2,1,2]
+# reinitialize hmm (randomly)
+hmm = dHMM(2,3)
+o = [1,3,1,1,1,2,3,1,2,1,3,2,1,3,2,2,2,2,2,2,2,1,1,1,2,1,1,2,3,2,1,2,3,3,2,1,1,3,2,3,2,2,2,3,2,3,3,2,1,2]
 
-# ch = baum_welch!(hmm, o; max_iter=1000, tol=1e-7)
+ch = baum_welch!(hmm, o; max_iter=1000, tol=1e-7)
 
-# @test(all(round(sum(hmm.A,2),15) .== 1.0))
-# @test(all(round(sum(hmm.B,2),15) .== 1.0))
-# @test(round(sum(hmm.p),15) == 1.0)
+@test(all(round(sum(hmm.A,2),15) .== 1.0))
+@test(all(round(sum(hmm.B,2),15) .== 1.0))
+@test(round(sum(hmm.p),15) == 1.0)
 
-# # log-liklihood should always increase under baum_welch
-# @test(all(diff(ch) .>= 0.0))
+# log-liklihood should always increase under baum_welch
+@test(all(diff(ch) .>= 0.0))
 
-# # log-liklihood should plateau (test tolerance parameter)
-# @test(ch[end] - ch[end-1] < 1e-7)
+# log-liklihood should plateau (test tolerance parameter)
+@test(ch[end] - ch[end-1] < 1e-7)
