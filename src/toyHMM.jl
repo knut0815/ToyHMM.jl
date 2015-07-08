@@ -75,7 +75,7 @@ function generate(hmm::dHMM, n_obs::Int)
 	return (s,o)
 end
 
-function forward(hmm::dHMM, o::Vector{Int})
+function forward(hmm::dHMM, o::Vector{Int}; scaling=true)
 	n_obs = length(o)
 
 	# alpha[t,i] = probability of being in state 'i' given o[1:t]
@@ -86,6 +86,12 @@ function forward(hmm::dHMM, o::Vector{Int})
 		alpha[1,i] = hmm.p[i] * hmm.B[i,o[1]]
 	end
 
+	if scaling
+		c = (Float64)[] # scaling coefficients
+		push!(c,1./sum(alpha[1,:]))
+		alpha[1,:] *= c[end] 
+	end
+
 	# induction step
 	for t = 2:n_obs
 		for j = 1:hmm.n
@@ -93,12 +99,21 @@ function forward(hmm::dHMM, o::Vector{Int})
 				alpha[t,j] += hmm.A[i,j] * alpha[t-1,i]
 			end
 			alpha[t,j] *= hmm.B[j,o[t]]
+			if scaling
+				push!(c,1./sum(alpha[t,:]))
+				alpha[t,:] *= c[end]
+			end
 		end
 	end
 
-	# Pr(observations), given hmm parameters (sum over all states at last point)
-	p_obs = sum(alpha[end,:]) 
-	return (alpha,p_obs)
+	# Calculate likelihood (or log-likelihood) of observed sequence
+	if scaling
+		log_p_obs = -sum(log(c))
+		return (alpha,log_p_obs,c)
+	else
+		p_obs = sum(alpha[end,:]) 
+		return (alpha,p_obs)
+	end
 end
 
 function backward(hmm::dHMM, o::Vector{Int})
