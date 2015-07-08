@@ -31,27 +31,33 @@ alpha,p_obs = forward(hmm,o; scaling=false)
 @test(all(alpha[:,1] .== 1))
 @test(all(alpha[:,2] .== 0))
 
-# test forward algorithm with scaling
+# test forward with scaling
 alpha,log_p_obs,coeff = forward(hmm,o)
 @test(log_p_obs == 0.0)
 @test(all(alpha[:,1] .== 1))
 @test(all(alpha[:,2] .== 0))
 @test(all(coeff .== 1.0))
 
-# # check backward algorithm on perfect sequence
-# beta = backward(hmm,o)
-# @test(all(beta[end,:] .== 1))
-# @test(all(beta[:,1] .== 1))
+# check backward algorithm on perfect sequence
+beta = backward(hmm,o)
+@test(all(beta[end,:] .== 1))
+@test(all(beta[:,1] .== 1))
+
+# test backward with scaling
+beta = backward(hmm,o;scale_coeff=coeff)
+println(beta)
+@test(all(beta[end,:] .== 1))
+@test(all(beta[:,1] .== 1))
 
 # # check viterbi algorithm on perfect sequence
 # @test(all(viterbi(hmm,o) .== s))
 
 # check forward-backward algorithm on impossible sequence
 alpha,p_obs = forward(hmm,o+1; scaling=false)
-# beta = backward(hmm,o+1)
+beta = backward(hmm,o+1)
 @test(p_obs == 0)
 @test(all(alpha .== 0))
-# @test(all(beta[1:end-1,:] .== 0))
+@test(all(beta[1:end-1,:] .== 0))
 
 # ######
 # # Compare output to Michael Hamilton's "dishonest casino" example

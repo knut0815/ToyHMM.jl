@@ -99,10 +99,10 @@ function forward(hmm::dHMM, o::Vector{Int}; scaling=true)
 				alpha[t,j] += hmm.A[i,j] * alpha[t-1,i]
 			end
 			alpha[t,j] *= hmm.B[j,o[t]]
-			if scaling
-				push!(c,1./sum(alpha[t,:]))
-				alpha[t,:] *= c[end]
-			end
+		end
+		if scaling
+			push!(c,1./sum(alpha[t,:]))
+			alpha[t,:] *= c[end]
 		end
 	end
 
@@ -116,20 +116,31 @@ function forward(hmm::dHMM, o::Vector{Int}; scaling=true)
 	end
 end
 
-function backward(hmm::dHMM, o::Vector{Int})
+function backward(hmm::dHMM, o::Vector{Int}; scale_coeff=None)
+	# scale_coeff are 1/sum(alpha[t,:]) calculated by forward algorithm
 	n_obs = length(o)
 
 	# beta[t,i] = probability of being in state 'i' and then obseverving o[t+1:end]
 	beta = zeros(n_obs, hmm.n)
 
 	# base case (initialize at end)
-	beta[end,:] += 1
+	if scale_coeff == None
+		beta[end,:] += 1
+	else
+		if length(scale_coeff) != n_obs
+			error("scale_coeff is improperly defined (wrong length)")
+		end
+		beta[end,:] += scale_coeff[end]
+	end
 
 	# induction step
 	for t = reverse(1:n_obs-1)
 		for i = 1:hmm.n
 			for j = 1:hmm.n
 				beta[t,i] += hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
+			end
+			if scale_coeff != None
+				beta[t,:] *= scale_coeff[t]
 			end
 		end
 	end
