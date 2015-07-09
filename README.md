@@ -1,6 +1,40 @@
 # ToyHMM.jl
 A simple Hidden Markov Model implementation in Julia. Intended mostly for educational purposes.
 
+### Installation
+
+```julia
+Pkg.clone("https://github.com/ahwillia/ToyHMM.jl.git")
+```
+
+### Simple Example
+
+```julia
+using ToyHMM
+
+n_states = 2
+n_outputs = 3
+hmm = dHMM(n_states,n_outputs)
+
+println(hmm.A) # state-transition matrix (randomly initialized, rows sum to 1)
+println(hmm.B) # emmission matrix (randomly initialized, rows sum to 1)
+println(hmm.p) # initial state probabilities (randomly initialized)
+
+o = [1,1,2,1,1,2,1,2,1,3,3,3,3,2,2,3,3,3] # example observation sequence
+
+ch = baum_welch!(hmm,o) # fit model using Expectation-Maximization
+
+println(ch) # log-likelihood values, convergence history
+
+println(hmm.A) # fitted values of the hmm model
+println(hmm.B)
+println(hmm.p)
+
+println(viterbi(hmm,o)) # most likely state sequence given hmm params
+```
+
+(also see `test/runtests.jl` for some examples)
+
 ### References and Acknowledgements:
 
 Michael Hamilton's implementation (python): http://www.cs.colostate.edu/~hamiltom/code.html
