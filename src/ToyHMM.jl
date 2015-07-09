@@ -22,7 +22,7 @@ end
 function dHMM(n::Int,m::Int)
 	# Randomize state-transition matrix
 	A = rand(n,n)
-	A ./= repmat(sum(A,1),n,1) # normalize columns
+	A ./= repmat(sum(A,1),n,1) # normalize rows
 	
 	# Randomize emission probability matrix
 	B = rand(n,m)
