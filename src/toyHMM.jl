@@ -208,69 +208,48 @@ end
 
 function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol=1e-6, scaling=true)
 	# Fit hmm parameters given set of observation sequences
+	# Setting tol to NaN will prevent early stopping, resulting in 'max_iter' iterations
 	n_seq = length(sequences)
 
     # convergence history of the fit, log-liklihood
     ch = (Float64)[]
 
     for k = 1:max_iter
-    	A_new = zeros(hmm.n, hmm.n)
-    	B_new = zeros(hmm.n, hmm.m)
-    	p_new = zeros(1, hmm.n)
+    	push!(ch,0.0)
+
+    	# Store weighted sums for numerators/denominators across sequences
+    	An_sum,Bn_sum = zeros(hmm.n,hmm.n),zeros(hmm.n,hmm.m)
+    	Ad_sum,Bd_sum = zeros(hmm.n),zeros(hmm.n)
+    	p_sum = zeros(hmm.n)
+
     	for o in sequences
-    		n_obs = length(o)
+    		# E step
+    		log_p_obs,alpha,beta,x,g = calc_stats(hmm,o,scaling)
+    		ch[end] += log_p_obs #(log_p_obs + log(length(o)))
 
-    		# Calculate forward/backward probabilities
-    		if scaling
-    			alpha, log_p_obs, coeff = forward(hmm,o; scaling=true)
-    			beta = backward(hmm,o; scale_coeff=coeff)
-    			push!(ch,log_p_obs)
-    		else
-				alpha, p_obs = forward(hmm,o; scaling=false)
-			    beta = backward(hmm,o)
-			    push!(ch,log(p_obs))
+    		# M step (re-estimation)
+    		An,Ad,Bn,Bd,p_new = re_estimate(hmm,o,x,g)
+
+    		# Add estimates to weighted sums
+    		w_k = -1.0 / log_p_obs #(log_p_obs + log(length(o)))
+    		An_sum += w_k * An
+    		Ad_sum += w_k * Ad
+    		Bn_sum += w_k * Bn
+    		Bd_sum += w_k * Bd
+    		p_sum += w_k * p_new
+		end
+
+		# Update parameters, combining across sequences
+		for i = 1:hmm.n
+			for j = 1:hmm.n
+				hmm.A[i,j] = An_sum[i,j] / Ad_sum[i]
 			end
-
-			# x[t,i,j] = probability of being in state 'i' at 't' and then in state 'j' at 't+1'
-			x = zeros(n_obs-1, hmm.n, hmm.n)
-			for t = 1:(n_obs-1)
-				for i = 1:hmm.n
-					for j = 1:hmm.n
-						x[t,i,j] = alpha[t,i] * hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
-					end
-				end
-				x[t,:,:] ./= sum(x[t,:,:]) # normalize to achieve probabilities
-			end
-
-			# g[t,i] = probability of being in state 'i' at step 't' given all observations
-			g = alpha .* beta
-			g ./= sum(g,2)   # normalize across states
-
-			# Re-estimate hmm.p (initial state probabilities)
-			p_new += g[1,:]
-
-			# Re-estimate hmm.A (state-transition probabilities)
-			for i = 1:hmm.n
-				ptrans = sum(g[1:end-1,i]) # ptrans = probability of transition from state 'i' at any unknown time
-				for j = 1:hmm.n
-					A_new[i,j] = sum(x[:,i,j]) / ptrans
-				end
-			end
-
-			# Re-estimate hmm.B (emission probabilities)
-			pstate = sum(g,1) # pstate[i] = probability of being in state 'i' at any unknown time
-			for i = 1:hmm.n
-				for z = 1:hmm.m
-					B_new[i,z] += sum(g[o.==z,i]) ./ pstate[i]
-				end
+			for z = 1:hmm.m
+				hmm.B[i,z] = Bn_sum[i,z] / Bd_sum[i]
 			end
 		end
-		## TODO: RE-NORMALIZATION
-		# renormalize across sequences and update parameters
-		hmm.p = vec(p_new) ./ n_seq
-		hmm.A = A_new ./ n_seq
-		hmm.B = B_new ./ n_seq
-
+		hmm.p = p_sum ./ sum(p_sum)
+		
 		if length(ch)>1 && (ch[end]-ch[end-1] < tol)
 			println("Baum-Welch converged, stopping early")
 			break
@@ -278,6 +257,64 @@ function baum_welch!(hmm::dHMM, sequences::Vector{Vector{Int}}; max_iter=20, tol
 	end
 
 	return ch
+end
+
+function re_estimate(hmm,o,x,g)
+	# Estimate numerator (An) and denominator (Ad) terms for updating hmm.A 
+	An = zeros(hmm.n, hmm.n) # An[i,j] = expected # of transitions from state 'i' to state 'j'
+	Ad = zeros(hmm.n)        # Ad[i] = expected # of transitions from state 'i'
+	for i = 1:hmm.n
+		Ad[i] = sum(g[1:end-1,i]) 
+		for j = 1:hmm.n
+			An[i,j] = sum(x[:,i,j])
+		end
+	end
+
+	# Estimate numerator (Bn) and denominator (Bd) terms for updating hmm.B
+	Bn = zeros(hmm.n, hmm.m) # Bn[i,z] = expected # of times observing 'z' in state 'i'
+	Bd = sum(g,1)'           # Bd[i] = expected # of time steps in state 'i'
+	for i = 1:hmm.n
+		for z = 1:hmm.m
+			Bn[i,z] += sum(g[o.==z,i])
+		end
+	end
+
+	# Re-estimate hmm.p (initial state probabilities)
+	p_new = vec(g[1,:])
+
+	return (An,Ad,Bn,Bd,p_new)
+end
+
+function calc_stats(hmm,o::Vector{Int},scaling)
+	## Single E-M iteration in the Baum-Welch procedure
+	n_obs = length(o)
+
+	# Calculate forward/backward probabilities
+	if scaling
+		alpha, log_p_obs, coeff = forward(hmm,o; scaling=true)
+		beta = backward(hmm,o; scale_coeff=coeff)
+	else
+		alpha, p_obs = forward(hmm,o; scaling=false)
+		log_p_obs = log(p_obs)
+	    beta = backward(hmm,o)
+	end
+
+	# x[t,i,j] = probability of being in state 'i' at 't' and then in state 'j' at 't+1'
+	x = zeros(n_obs-1, hmm.n, hmm.n)
+	for t = 1:(n_obs-1)
+		for i = 1:hmm.n
+			for j = 1:hmm.n
+				x[t,i,j] = alpha[t,i] * hmm.A[i,j] * hmm.B[j,o[t+1]] * beta[t+1,j]
+			end
+		end
+		x[t,:,:] ./= sum(x[t,:,:]) # normalize to achieve probabilities
+	end
+
+	# g[t,i] = probability of being in state 'i' at step 't' given all observations
+	g = alpha .* beta
+	g ./= sum(g,2)   # normalize across states
+
+	return log_p_obs, alpha, beta, x, g
 end
 
 end

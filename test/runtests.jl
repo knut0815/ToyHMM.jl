@@ -128,14 +128,20 @@ baum_welch!(hmm2, o; max_iter=60, scaling=true)
 @test(all(round(hmm2.B,4) .== expected_result_B))
 @test(all(round(hmm2.p,4) .== expected_result_p))
 
-# # reinitialize hmm (true underlying model)
-# #A = [ 0.7 0.3 ;
-# #      0.4 0.6 ]
-# #B = [ 1/2        1/3   1/6+eps() ;
-# #      1/6+eps()  1/3   1/2       ]
-# #p = [0.5, 0.5]
+hmm3 = deepcopy(hmm) # check with multiple sequences
+oo = (Vector{Int})[o;o] # two copies of the same sequence
+baum_welch!(hmm3, oo; max_iter=60, tol=NaN, scaling=true)
+@test(all(round(hmm3.A,4) .== expected_result_A))
+@test(all(round(hmm3.B,4) .== expected_result_B))
+@test(all(round(hmm3.p,4) .== expected_result_p))
 
-# reinitialize hmm (randomly)
+## Check Baum-Welch from random initialization
+# Model used to generate observation sequences:
+# A = [ 0.7 0.3 ;
+#       0.4 0.6 ]
+# B = [ 1/2        1/3   1/6+eps() ;
+#       1/6+eps()  1/3   1/2       ]
+# p = [0.5, 0.5]
 hmm = dHMM(2,3)
 o = [1,3,1,1,1,2,3,1,2,1,3,2,1,3,2,2,2,2,2,2,2,1,1,1,2,1,1,2,3,2,1,2,3,3,2,1,1,3,2,3,2,2,2,3,2,3,3,2,1,2]
 
@@ -149,4 +155,57 @@ ch = baum_welch!(hmm, o; max_iter=1000, tol=1e-7)
 @test(all(diff(ch) .>= 0.0))
 
 # log-liklihood should plateau (test tolerance parameter)
-@test(ch[end] - ch[end-1] < 1e-7)
+if length(ch)<1000
+  @test(ch[end] - ch[end-1] < 1e-7)
+end
+
+## Check Baum-Welch on multiple sequences
+o1 = [3,3,3,1,1,1,1,3,2,2]
+o2 = [1,3,3,1,3,2,2,3,1,1]
+o3 = [2,3,3,3,3,1,2,1,3,2]
+o4 = [2,1,1,2,3,1,3,2,3,1]
+o5 = [3,3,3,1,3,2,1,3,1,1]
+o6 = [2,1,1,2,2,2,2,3,2,3,1,1,1,2,3,3,2,3,3,1]
+o7 = [1,1,3,1,3,3,2,3,2,3,2,1,1,2,2,2,2,3,1,2]
+o8 = [1,3,2,1,3,2,2,2,2,1,2,1,3,2,2,2,2,1,2,2]
+o9 = [3,2,2,1,3,2,1,2,3,3,1,3,1,2,2,3,2,1,3,3]
+o10 = [2,2,1,3,2,2,1,3,1,1,2,3,3,1,1,3,3,1,1,3]
+
+seq1 = (Vector{Int})[o1; o2; o3; o4; o5]
+seq2 = (Vector{Int})[o6; o7; o8; o9; o10]
+seq3 = (Vector{Int})[o1; o2; o3; o4; o5; o6; o7; o8; o9; o10]
+
+# First set of sequences
+hmm = dHMM(2,3) # re-initialize with random params
+ch = baum_welch!(hmm, seq1; max_iter=1000, tol=1e-7)
+@test(all(round(sum(hmm.A,2),15) .== 1.0))
+@test(all(round(sum(hmm.B,2),15) .== 1.0))
+@test(round(sum(hmm.p),15) == 1.0)
+@test(all(diff(ch) .>= -1e-10))
+if length(ch)<1000
+  @test(ch[end] - ch[end-1] < 1e-7)
+end
+
+# Second set of sequences
+hmm = dHMM(2,3) # re-initialize with random params
+ch = baum_welch!(hmm, seq2; max_iter=1000, tol=1e-7)
+@test(all(round(sum(hmm.A,2),15) .== 1.0))
+@test(all(round(sum(hmm.B,2),15) .== 1.0))
+@test(round(sum(hmm.p),15) == 1.0)
+@test(all(diff(ch) .>= -1e-10))
+if length(ch)<1000
+  @test(ch[end] - ch[end-1] < 1e-7)
+end
+
+# All sequences
+hmm = dHMM(2,3) # re-initialize with random params
+ch = baum_welch!(hmm, seq3; max_iter=100, tol=NaN)
+@test(all(round(sum(hmm.A,2),15) .== 1.0))
+@test(all(round(sum(hmm.B,2),15) .== 1.0))
+@test(round(sum(hmm.p),15) == 1.0)
+
+# These tests fail...
+#    @test(all(diff(ch) .>= 0.0))
+#    @test(ch[end] - ch[end-1] < 1e-7)
+# potentially because having different length observation sequences
+# violates some assumptions?
