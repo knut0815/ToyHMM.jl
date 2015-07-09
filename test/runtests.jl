@@ -1,5 +1,5 @@
 using Base.Test
-using toyHMM
+using ToyHMM
 
 n_states = 2
 n_outputs = 3
