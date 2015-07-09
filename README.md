@@ -1,5 +1,5 @@
 # toyHMM.jl
-A simple Hidden Markov Model implementation for educational purposes.
+A simple Hidden Markov Model implementation in Julia. Intended mostly for educational purposes.
 
 ### References and Acknowledgements:
 
