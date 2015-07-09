@@ -35,6 +35,25 @@ println(viterbi(hmm,o)) # most likely state sequence given hmm params
 
 (also see `test/runtests.jl` for some examples)
 
+### How fast is it?
+
+```julia
+using ToyHMM
+
+n_states = 2
+n_outputs = 3
+
+# create a very long output sequence
+true_model = dHMM(n_states,n_outputs)
+(s,o) = generate(true_model,100_000)
+
+# try to recover similar params by fitting new model
+fit_model = dHMM(n_states,n_outputs)
+@time ch = baum_welch!(fit_model,o)
+```
+
+`elapsed time: 7.958006041 seconds (4140814448 bytes allocated, 26.85% gc time)`
+
 ### References and Acknowledgements:
 
 Michael Hamilton's implementation (python): http://www.cs.colostate.edu/~hamiltom/code.html
