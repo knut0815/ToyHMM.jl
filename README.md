@@ -1,5 +1,7 @@
 # ToyHMM.jl
-A simple Hidden Markov Model implementation in Julia. Intended mostly for educational purposes.
+A simple Hidden Markov Model implementation in Julia. Intended mostly for educational purposes. Only supports discrete emission probabilities
+
+I am developing [HMM.jl](https://github.com/ahwillia/HMM.jl) for a more general-purpose module.
 
 ### Installation
 
