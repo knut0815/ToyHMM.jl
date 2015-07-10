@@ -66,9 +66,9 @@ function generate(hmm::dHMM, n_obs::Int)
 	o[1] = sample(WeightVec(vec(hmm.B[s[1],:]))) # draw obs given initial state
 
 	# Iterate drawing observations and updating state
-	for i = 2:n_obs
-		s[i] = sample(WeightVec(hmm.A[:,s[i-1]])) # Pr(s[i+1]==j|s[i]) = A[j,s[i]]
-		o[i] = sample(WeightVec(vec(hmm.B[s[i],:])))   # Pr(o==k|s) = B[s,k]
+	for t = 2:n_obs
+		s[t] = sample(WeightVec(hmm.A[s[t-1],:]))    # Transition probabilities from state s[t-1] 
+		o[t] = sample(WeightVec(vec(hmm.B[s[t],:]))) # Pr(o==k|s) = B[s,k]
 	end
 
 	# return sequence of states and observations
