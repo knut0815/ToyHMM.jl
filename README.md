@@ -63,3 +63,8 @@ Michael Hamilton's implementation (python): http://www.cs.colostate.edu/~hamilto
 Guy Zyskind's implementation (python): https://github.com/guyz/HMM
 
 Rabiner, Lawrence R. ["A tutorial on hidden Markov models and selected applications in speech recognition."](http://www.ece.ucsb.edu/Faculty/Rabiner/ece259/Reprints/tutorial%20on%20hmm%20and%20applications.pdf) Proceedings of the IEEE 77.2 (1989): 257-286.
+
+### To Do:
+
+MacKay DJC (1997). [Ensemble Learning for Hidden Markov Models](http://www.inference.phy.cam.ac.uk/mackay/ensemblePaper.pdf) *Technical report, Cavendish
+Laboratory, University of Cambridge*
