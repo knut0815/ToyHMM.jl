@@ -64,7 +64,10 @@ Guy Zyskind's implementation (python): https://github.com/guyz/HMM
 
 Rabiner, Lawrence R. ["A tutorial on hidden Markov models and selected applications in speech recognition."](http://www.ece.ucsb.edu/Faculty/Rabiner/ece259/Reprints/tutorial%20on%20hmm%20and%20applications.pdf) Proceedings of the IEEE 77.2 (1989): 257-286.
 
-### To Do:
+### To Do (Variational Bayes):
 
-MacKay DJC (1997). [Ensemble Learning for Hidden Markov Models](http://www.inference.phy.cam.ac.uk/mackay/ensemblePaper.pdf) *Technical report, Cavendish
-Laboratory, University of Cambridge*
+MacKay DJC (1997). [Ensemble Learning for Hidden Markov Models](http://www.inference.phy.cam.ac.uk/mackay/ensemblePaper.pdf) *Technical report, University of Cambridge*
+
+MacKay DJC (1998). [Choice of Basis for Laplace Approximation](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.49.9982&rep=rep1&type=pdf). *Machine Learning*. 33(1), 77-86.
+
+Beal MJ (2003). [Variational Algorithms for Approximate Bayesian Inference](http://www.cse.buffalo.edu/faculty/mbeal/thesis/beal03.pdf). *PhD Thesis, University College London*
